@@ -1,5 +1,8 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import '../data/models/song.dart';
 import '../data/services/ytmusic_api.dart';
 
@@ -12,6 +15,7 @@ class TestPlayerScreen extends StatefulWidget {
 class _TestPlayerScreenState extends State<TestPlayerScreen> {
   final _api = YTMusicApi();
   final _player = AudioPlayer();
+  final _dio = Dio();
   final _controller = TextEditingController();
 
   List<Song> _results = [];
@@ -20,13 +24,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   bool _playing = false;
   bool _buffering = false;
   String? _error;
-
-  static const _headers = {
-    'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Referer': 'https://www.youtube.com/',
-    'Origin': 'https://www.youtube.com',
-  };
+  double _downloadProgress = 0;
 
   @override
   void initState() {
@@ -74,24 +72,56 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
     setState(() {
       _current = song;
       _error = null;
+      _downloadProgress = 0;
     });
     _showSnack('Loading...');
+
     try {
-      final url = await _api.getStreamUrl(song.id);
-      debugPrint('Stream URL: $url');
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(url),
-          headers: _headers,
-          tag: MediaItemSimple(id: song.id, title: song.title),
-        ),
-      );
+      // 1. Check cache first
+      final tempDir = await getTemporaryDirectory();
+      final cacheDir = Directory('${tempDir.path}/aura_cache');
+      if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+      final file = File('${cacheDir.path}/${song.id}.m4a');
+
+      if (!await file.exists()) {
+        // 2. Get stream URL
+        final url = await _api.getStreamUrl(song.id);
+        debugPrint('Got URL: ${url.substring(0, 100)}...');
+
+        // 3. Download with proper headers
+        await _dio.download(
+          url,
+          file.path,
+          options: Options(
+            headers: {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+              'Referer': 'https://www.youtube.com/',
+              'Origin': 'https://www.youtube.com',
+            },
+            responseType: ResponseType.bytes,
+            followRedirects: true,
+          ),
+          onReceiveProgress: (received, total) {
+            if (total > 0 && mounted) {
+              setState(() => _downloadProgress = received / total);
+            }
+          },
+        );
+        debugPrint('Downloaded to: ${file.path}');
+      } else {
+        debugPrint('Playing from cache: ${file.path}');
+      }
+
+      // 4. Play from local file
+      await _player.setFilePath(file.path);
       _player.play();
       _showSnack('Playing!');
-    } catch (e) {
+    } catch (e, st) {
       setState(() => _error = e.toString());
       _showSnack('Play failed: $e');
       debugPrint('Play error: $e');
+      debugPrint('$st');
     }
   }
 
@@ -105,10 +135,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Aura Music'),
-        backgroundColor: const Color(0xFF1A1A1A),
-      ),
+      appBar: AppBar(title: const Text('Aura Music')),
       body: Column(
         children: [
           Padding(
@@ -147,54 +174,43 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                     children: [
                       ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.network(
-                          _current!.thumbnail,
-                          width: 48,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Container(
+                        child: Image.network(_current!.thumbnail,
                             width: 48,
                             height: 48,
-                            color: Colors.grey.shade900,
-                          ),
-                        ),
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                                width: 48,
+                                height: 48,
+                                color: Colors.grey.shade900)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              _current!.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              _current!.artist,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 12),
-                            ),
+                            Text(_current!.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w600)),
+                            Text(_current!.artist,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.grey, fontSize: 12)),
                           ],
                         ),
                       ),
-                      if (_buffering)
+                      if (_buffering || _downloadProgress > 0 && _downloadProgress < 1)
                         const SizedBox(
-                          width: 40,
-                          height: 40,
-                          child: Padding(
-                            padding: EdgeInsets.all(8),
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFFFA2D48),
-                            ),
-                          ),
-                        )
+                            width: 40,
+                            height: 40,
+                            child: Padding(
+                              padding: EdgeInsets.all(8),
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Color(0xFFFA2D48)),
+                            ))
                       else
                         IconButton(
                           icon: Icon(
@@ -214,15 +230,22 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                         ),
                     ],
                   ),
+                  if (_downloadProgress > 0 && _downloadProgress < 1)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(
+                        value: _downloadProgress,
+                        color: const Color(0xFFFA2D48),
+                        backgroundColor: Colors.grey.shade900,
+                      ),
+                    ),
                   if (_error != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        _error!,
-                        style: const TextStyle(color: Colors.red, fontSize: 11),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      child: Text(_error!,
+                          style: const TextStyle(color: Colors.red, fontSize: 11),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis),
                     ),
                 ],
               ),
@@ -231,41 +254,31 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
           Expanded(
             child: _results.isEmpty
                 ? const Center(
-                    child: Text(
-                      'Search for a song',
-                      style: TextStyle(color: Colors.grey),
-                    ),
-                  )
+                    child: Text('Search for a song',
+                        style: TextStyle(color: Colors.grey)))
                 : ListView.builder(
                     itemCount: _results.length,
                     itemBuilder: (_, i) {
                       final s = _results[i];
                       return ListTile(
                         leading: SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.network(
-                              s.thumbnail,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) =>
-                                  Container(color: Colors.grey.shade900),
-                            ),
-                          ),
-                        ),
-                        title: Text(
-                          s.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                        subtitle: Text(
-                          s.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
+                            width: 48,
+                            height: 48,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(s.thumbnail,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Container(
+                                      color: Colors.grey.shade900)),
+                            )),
+                        title: Text(s.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white)),
+                        subtitle: Text(s.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.grey)),
                         onTap: () => _play(s),
                       );
                     },
@@ -275,10 +288,4 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       ),
     );
   }
-}
-
-class MediaItemSimple {
-  final String id;
-  final String title;
-  MediaItemSimple({required this.id, required this.title});
 }
