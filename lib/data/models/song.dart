@@ -1,5 +1,3 @@
-import 'package:audio_service/audio_service.dart';
-
 class Song {
   final String id;
   final String title;
@@ -16,14 +14,4 @@ class Song {
     required this.duration,
     this.album,
   });
-
-  MediaItem toMediaItem(String streamUrl) => MediaItem(
-        id: id,
-        title: title,
-        artist: artist,
-        album: album,
-        duration: duration,
-        artUri: Uri.parse(thumbnail),
-        extras: {'streamUrl': streamUrl},
-      );
 }
