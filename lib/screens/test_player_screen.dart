@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
+import 'package:just_audio_background/just_audio_background.dart';
+
 import '../data/models/song.dart';
 import '../data/services/ytmusic_api.dart';
-import '../main.dart';
 
 class TestPlayerScreen extends StatefulWidget {
   const TestPlayerScreen({super.key});
@@ -11,10 +13,28 @@ class TestPlayerScreen extends StatefulWidget {
 
 class _TestPlayerScreenState extends State<TestPlayerScreen> {
   final _api = YTMusicApi();
+  final _player = AudioPlayer();
   final _controller = TextEditingController();
+
   List<Song> _results = [];
   bool _loading = false;
   Song? _current;
+  bool _playing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _player.playingStream.listen((p) {
+      if (mounted) setState(() => _playing = p);
+    });
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
 
   Future<void> _search() async {
     if (_controller.text.trim().isEmpty) return;
@@ -32,23 +52,22 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   }
 
   Future<void> _play(Song song) async {
-    // Wait up to 15 sec for audioHandler
-    int tries = 0;
-    while (audioHandler == null && tries < 15) {
-      await Future.delayed(const Duration(seconds: 1));
-      tries++;
-    }
-
-    if (audioHandler == null) {
-      _showSnack('Audio service failed to start. Check logs.');
-      return;
-    }
-
     setState(() => _current = song);
     _showSnack('Loading ${song.title}...');
     try {
       final url = await _api.getStreamUrl(song.id);
-      await audioHandler!.playMedia(song.toMediaItem(url), url);
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(url),
+          tag: MediaItem(
+            id: song.id,
+            title: song.title,
+            artist: song.artist,
+            artUri: Uri.parse(song.thumbnail),
+          ),
+        ),
+      );
+      _player.play();
       _showSnack('Playing!');
     } catch (e) {
       _showSnack('Play failed: $e');
@@ -58,7 +77,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   void _showSnack(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 2)),
     );
   }
 
@@ -94,21 +113,64 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
             ),
           ),
           if (_current != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Card(
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1A),
-                child: ListTile(
-                  leading: const Icon(Icons.music_note, color: Color(0xFFFA2D48)),
-                  title: Text('Now: ${_current!.title}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white)),
-                  subtitle: Text(_current!.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.grey)),
-                ),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(
+                      _current!.thumbnail,
+                      width: 48,
+                      height: 48,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Container(width: 48, height: 48, color: Colors.grey.shade900),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _current!.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          _current!.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(
+                      _playing ? Icons.pause_circle_filled : Icons.play_circle_filled,
+                      color: const Color(0xFFFA2D48),
+                      size: 40,
+                    ),
+                    onPressed: () {
+                      if (_playing) {
+                        _player.pause();
+                      } else {
+                        _player.play();
+                      }
+                    },
+                  ),
+                ],
               ),
             ),
           if (_loading) const LinearProgressIndicator(color: Color(0xFFFA2D48)),
@@ -116,7 +178,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
             child: _results.isEmpty
                 ? const Center(
                     child: Text(
-                      'Search for songs to test\nnotification controls!',
+                      'Search for a song to play',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey),
                     ),

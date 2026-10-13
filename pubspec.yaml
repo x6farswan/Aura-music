@@ -1,5 +1,5 @@
 name: aura_music
-description: Open source YouTube Music client with Hi-Res audio
+description: Open source YouTube Music client
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -11,9 +11,8 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.6
   provider: ^6.1.1
-  audio_service: ^0.18.12
   just_audio: ^0.9.36
-  audio_session: ^0.1.16
+  just_audio_background: ^0.0.1-beta.11
   dio: ^5.4.0
   youtube_explode_dart: ^2.0.2
   hive: ^2.2.3
