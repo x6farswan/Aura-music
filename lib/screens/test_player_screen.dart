@@ -19,6 +19,14 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   Song? _current;
   bool _playing = false;
   bool _buffering = false;
+  String? _error;
+
+  static const _headers = {
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Referer': 'https://www.youtube.com/',
+    'Origin': 'https://www.youtube.com',
+  };
 
   @override
   void initState() {
@@ -63,15 +71,27 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   }
 
   Future<void> _play(Song song) async {
-    setState(() => _current = song);
+    setState(() {
+      _current = song;
+      _error = null;
+    });
     _showSnack('Loading...');
     try {
       final url = await _api.getStreamUrl(song.id);
-      await _player.setUrl(url);
+      debugPrint('Stream URL: $url');
+      await _player.setAudioSource(
+        AudioSource.uri(
+          Uri.parse(url),
+          headers: _headers,
+          tag: MediaItemSimple(id: song.id, title: song.title),
+        ),
+      );
       _player.play();
       _showSnack('Playing!');
     } catch (e) {
+      setState(() => _error = e.toString());
       _showSnack('Play failed: $e');
+      debugPrint('Play error: $e');
     }
   }
 
@@ -121,74 +141,88 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                 color: const Color(0xFF1A1A1A),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      _current!.thumbnail,
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 48,
-                        height: 48,
-                        color: Colors.grey.shade900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _current!.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
+                  Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          _current!.thumbnail,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 48,
+                            height: 48,
+                            color: Colors.grey.shade900,
                           ),
                         ),
-                        Text(
-                          _current!.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: Colors.grey, fontSize: 12),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _current!.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              _current!.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.grey, fontSize: 12),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      if (_buffering)
+                        const SizedBox(
+                          width: 40,
+                          height: 40,
+                          child: Padding(
+                            padding: EdgeInsets.all(8),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFFFA2D48),
+                            ),
+                          ),
+                        )
+                      else
+                        IconButton(
+                          icon: Icon(
+                            _playing
+                                ? Icons.pause_circle_filled
+                                : Icons.play_circle_filled,
+                            color: const Color(0xFFFA2D48),
+                            size: 40,
+                          ),
+                          onPressed: () {
+                            if (_playing) {
+                              _player.pause();
+                            } else {
+                              _player.play();
+                            }
+                          },
+                        ),
+                    ],
                   ),
-                  if (_buffering)
-                    const SizedBox(
-                      width: 40,
-                      height: 40,
-                      child: Padding(
-                        padding: EdgeInsets.all(8),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFFFA2D48),
-                        ),
+                  if (_error != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        _error!,
+                        style: const TextStyle(color: Colors.red, fontSize: 11),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    )
-                  else
-                    IconButton(
-                      icon: Icon(
-                        _playing
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        color: const Color(0xFFFA2D48),
-                        size: 40,
-                      ),
-                      onPressed: () {
-                        if (_playing) {
-                          _player.pause();
-                        } else {
-                          _player.play();
-                        }
-                      },
                     ),
                 ],
               ),
@@ -241,4 +275,10 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       ),
     );
   }
+}
+
+class MediaItemSimple {
+  final String id;
+  final String title;
+  MediaItemSimple({required this.id, required this.title});
 }
