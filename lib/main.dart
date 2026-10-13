@@ -1,4 +1,3 @@
-cat > lib/main.dart << 'EOF'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -9,25 +8,30 @@ import 'screens/splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.auramusic.channel.audio',
     androidNotificationChannelName: 'Aura Music Playback',
     androidNotificationOngoing: true,
   );
+
   await Hive.initFlutter();
   await Hive.openBox('settings');
   await Hive.openBox('history');
   await Hive.openBox('cache_meta');
   await Hive.openBox('library');
+
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     systemNavigationBarColor: Colors.transparent,
   ));
+
   runApp(const AuraMusicApp());
 }
 
 class AuraMusicApp extends StatelessWidget {
   const AuraMusicApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -38,4 +42,3 @@ class AuraMusicApp extends StatelessWidget {
     );
   }
 }
-EOF
