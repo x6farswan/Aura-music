@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
-
 import '../data/models/song.dart';
 import '../data/services/ytmusic_api.dart';
 
@@ -20,12 +18,21 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   bool _loading = false;
   Song? _current;
   bool _playing = false;
+  bool _buffering = false;
 
   @override
   void initState() {
     super.initState();
     _player.playingStream.listen((p) {
       if (mounted) setState(() => _playing = p);
+    });
+    _player.playerStateStream.listen((state) {
+      if (mounted) {
+        setState(() {
+          _buffering = state.processingState == ProcessingState.loading ||
+              state.processingState == ProcessingState.buffering;
+        });
+      }
     });
   }
 
@@ -41,32 +48,26 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
     setState(() => _loading = true);
     try {
       final res = await _api.search(_controller.text);
-      setState(() {
-        _results = res;
-        _loading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _results = res;
+          _loading = false;
+        });
+      }
     } catch (e) {
-      setState(() => _loading = false);
-      _showSnack('Search failed: $e');
+      if (mounted) {
+        setState(() => _loading = false);
+        _showSnack('Search failed: $e');
+      }
     }
   }
 
   Future<void> _play(Song song) async {
     setState(() => _current = song);
-    _showSnack('Loading ${song.title}...');
+    _showSnack('Loading...');
     try {
       final url = await _api.getStreamUrl(song.id);
-      await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(url),
-          tag: MediaItem(
-            id: song.id,
-            title: song.title,
-            artist: song.artist,
-            artUri: Uri.parse(song.thumbnail),
-          ),
-        ),
-      );
+      await _player.setUrl(url);
       _player.play();
       _showSnack('Playing!');
     } catch (e) {
@@ -114,7 +115,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
           ),
           if (_current != null)
             Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              margin: const EdgeInsets.symmetric(horizontal: 16),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: const Color(0xFF1A1A1A),
@@ -129,8 +130,11 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                       width: 48,
                       height: 48,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          Container(width: 48, height: 48, color: Colors.grey.shade900),
+                      errorBuilder: (_, __, ___) => Container(
+                        width: 48,
+                        height: 48,
+                        color: Colors.grey.shade900,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -151,25 +155,41 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                           _current!.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 12),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    icon: Icon(
-                      _playing ? Icons.pause_circle_filled : Icons.play_circle_filled,
-                      color: const Color(0xFFFA2D48),
-                      size: 40,
+                  if (_buffering)
+                    const SizedBox(
+                      width: 40,
+                      height: 40,
+                      child: Padding(
+                        padding: EdgeInsets.all(8),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFFFA2D48),
+                        ),
+                      ),
+                    )
+                  else
+                    IconButton(
+                      icon: Icon(
+                        _playing
+                            ? Icons.pause_circle_filled
+                            : Icons.play_circle_filled,
+                        color: const Color(0xFFFA2D48),
+                        size: 40,
+                      ),
+                      onPressed: () {
+                        if (_playing) {
+                          _player.pause();
+                        } else {
+                          _player.play();
+                        }
+                      },
                     ),
-                    onPressed: () {
-                      if (_playing) {
-                        _player.pause();
-                      } else {
-                        _player.play();
-                      }
-                    },
-                  ),
                 ],
               ),
             ),
@@ -178,8 +198,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
             child: _results.isEmpty
                 ? const Center(
                     child: Text(
-                      'Search for a song to play',
-                      textAlign: TextAlign.center,
+                      'Search for a song',
                       style: TextStyle(color: Colors.grey),
                     ),
                   )
@@ -193,21 +212,26 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                           height: 48,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.network(s.thumbnail,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Container(
-                                      color: Colors.grey.shade900,
-                                    )),
+                            child: Image.network(
+                              s.thumbnail,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) =>
+                                  Container(color: Colors.grey.shade900),
+                            ),
                           ),
                         ),
-                        title: Text(s.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.white)),
-                        subtitle: Text(s.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: Colors.grey)),
+                        title: Text(
+                          s.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                        subtitle: Text(
+                          s.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: Colors.grey),
+                        ),
                         onTap: () => _play(s),
                       );
                     },
