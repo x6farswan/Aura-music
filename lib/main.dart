@@ -1,11 +1,27 @@
 import 'package:flutter/material.dart';
+import 'package:audio_service/audio_service.dart';
 
-void main() {
-  runApp(const MyApp());
+import 'data/services/audio_handler.dart';
+import 'screens/test_player_screen.dart';
+
+late AuraAudioHandler audioHandler;
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  audioHandler = await AudioService.init(
+    builder: () => AuraAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.auramusic.channel.audio',
+      androidNotificationChannelName: 'Aura Music Playback',
+      androidNotificationOngoing: true,
+      androidStopForegroundOnPause: true,
+    ),
+  );
+  runApp(const AuraMusicApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class AuraMusicApp extends StatelessWidget {
+  const AuraMusicApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -20,22 +36,7 @@ class MyApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: Colors.black,
       ),
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Aura Music')),
-        body: const Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.music_note_rounded, size: 80, color: Color(0xFFFA2D48)),
-              SizedBox(height: 16),
-              Text(
-                'Aura Music is working!',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-              ),
-            ],
-          ),
-        ),
-      ),
+      home: const TestPlayerScreen(),
     );
   }
 }
