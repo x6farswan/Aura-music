@@ -27,32 +27,39 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       });
     } catch (e) {
       setState(() => _loading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Search failed: $e')),
-        );
-      }
+      _showSnack('Search failed: $e');
     }
   }
 
   Future<void> _play(Song song) async {
+    // Wait up to 15 sec for audioHandler
+    int tries = 0;
+    while (audioHandler == null && tries < 15) {
+      await Future.delayed(const Duration(seconds: 1));
+      tries++;
+    }
+
     if (audioHandler == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Audio service not ready yet')),
-      );
+      _showSnack('Audio service failed to start. Check logs.');
       return;
     }
+
     setState(() => _current = song);
+    _showSnack('Loading ${song.title}...');
     try {
       final url = await _api.getStreamUrl(song.id);
       await audioHandler!.playMedia(song.toMediaItem(url), url);
+      _showSnack('Playing!');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Play failed: $e')),
-        );
-      }
+      _showSnack('Play failed: $e');
     }
+  }
+
+  void _showSnack(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), duration: const Duration(seconds: 3)),
+    );
   }
 
   @override

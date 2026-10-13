@@ -9,11 +9,16 @@ AuraAudioHandler? audioHandler;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Run app FIRST so UI shows even if audio init fails
+  // Show UI first
   runApp(const AuraMusicApp());
 
-  // Then init audio service in background
+  // Init audio service
+  _initAudio();
+}
+
+Future<void> _initAudio() async {
   try {
+    debugPrint('=== AudioService init START ===');
     audioHandler = await AudioService.init(
       builder: () => AuraAudioHandler(),
       config: const AudioServiceConfig(
@@ -22,9 +27,10 @@ Future<void> main() async {
         androidNotificationOngoing: true,
       ),
     );
-    debugPrint('AudioService initialized OK');
-  } catch (e) {
-    debugPrint('AudioService init FAILED: $e');
+    debugPrint('=== AudioService init SUCCESS ===');
+  } catch (e, st) {
+    debugPrint('=== AudioService init FAILED: $e ===');
+    debugPrint('$st');
   }
 }
 
