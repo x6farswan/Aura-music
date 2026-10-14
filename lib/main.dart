@@ -1,8 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:yt_flutter_musicapi/yt_flutter_musicapi.dart';
 import 'screens/test_player_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await YtFlutterMusicapi().initialize(
+      proxy: null,
+      country: 'IN',
+    );
+    debugPrint('YT API initialized');
+  } catch (e) {
+    debugPrint('YT API init failed: $e');
+  }
+
   runApp(const AuraMusicApp());
 }
 
