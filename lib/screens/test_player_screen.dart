@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:kd_youtube_background_audio/kd_youtube_background_audio.dart';
+import '../main.dart';
 
 class TestPlayerScreen extends StatefulWidget {
   const TestPlayerScreen({super.key});
@@ -8,32 +8,12 @@ class TestPlayerScreen extends StatefulWidget {
 }
 
 class _TestPlayerScreenState extends State<TestPlayerScreen> {
-  late final KdYoutubeAudioPlayer _player;
   final _controller = TextEditingController();
 
   bool _playing = false;
   bool _buffering = false;
   String? _currentTitle;
   String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _player = KdYoutubeAudioPlayer();
-    _player.playingStream.listen((p) {
-      if (mounted) setState(() => _playing = p);
-    });
-    _player.bufferingStream.listen((b) {
-      if (mounted) setState(() => _buffering = b);
-    });
-  }
-
-  @override
-  void dispose() {
-    _player.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
 
   Future<void> _playFromYoutube() async {
     final videoId = _controller.text.trim();
@@ -44,11 +24,30 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       _error = null;
     });
 
+    // Wait for handler to be ready (up to 10 sec)
+    int tries = 0;
+    while (audioHandler == null && tries < 10) {
+      await Future.delayed(const Duration(seconds: 1));
+      tries++;
+    }
+
+    if (audioHandler == null) {
+      setState(() => _error = 'Audio service not ready. Check logs.');
+      return;
+    }
+
     try {
-      await _player.playFromYoutube(videoId);
+      await audioHandler.playFromYoutube(videoId: videoId);
+      if (mounted) setState(() => _playing = true);
     } catch (e) {
       setState(() => _error = e.toString());
     }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   @override
@@ -100,33 +99,24 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                       style: const TextStyle(color: Colors.white),
                     ),
                   ),
-                  if (_buffering)
-                    const SizedBox(
-                      width: 32,
-                      height: 32,
-                      child: Padding(
-                        padding: EdgeInsets.all(6),
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Color(0xFFFA2D48)),
-                      ),
-                    )
-                  else
-                    IconButton(
-                      icon: Icon(
-                        _playing
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        color: const Color(0xFFFA2D48),
-                        size: 40,
-                      ),
-                      onPressed: () {
-                        if (_playing) {
-                          _player.pause();
-                        } else {
-                          _player.play();
-                        }
-                      },
+                  IconButton(
+                    icon: Icon(
+                      _playing
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_filled,
+                      color: const Color(0xFFFA2D48),
+                      size: 40,
                     ),
+                    onPressed: () {
+                      if (audioHandler == null) return;
+                      if (_playing) {
+                        audioHandler.pause();
+                      } else {
+                        audioHandler.play();
+                      }
+                      setState(() => _playing = !_playing);
+                    },
+                  ),
                 ],
               ),
             ),
