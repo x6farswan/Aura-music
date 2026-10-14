@@ -13,7 +13,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   final _controller = TextEditingController();
   final _api = YtFlutterMusicapi();
 
-  List<Map<String, dynamic>> _results = [];
+  List<dynamic> _results = [];
   bool _loading = false;
   bool _playing = false;
   String? _currentTitle;
@@ -43,13 +43,18 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       _error = null;
     });
     try {
-      final songs = await _api.searchMusic(
+      final response = await _api.searchMusic(
         query: _controller.text,
         limit: 20,
-        audioQuality: 'VERY_HIGH',
-        thumbQuality: 'VERY_HIGH',
+        audioQuality: AudioQuality.veryHigh,
+        thumbQuality: ThumbnailQuality.high,
         includeAudioUrl: true,
       );
+
+      // Extract data from YTMusicResponse wrapper
+      final dynamic data = response.data ?? [];
+      final List<dynamic> songs = (data as List).toList();
+
       if (mounted) {
         setState(() {
           _results = songs;
@@ -67,15 +72,30 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
     }
   }
 
-  Future<void> _play(Map<String, dynamic> song) async {
-    final audioUrl = song['audioUrl'] as String?;
+  Future<void> _play(dynamic song) async {
+    String? audioUrl;
+    String title = 'Unknown';
+    String artist = '';
+
+    try {
+      audioUrl = song.audioUrl?.toString();
+      title = song.title?.toString() ?? 'Unknown';
+      final artists = song.artists;
+      if (artists is List) {
+        artist = artists.map((a) => a.toString()).join(', ');
+      }
+    } catch (e) {
+      debugPrint('Parse error: $e');
+    }
+
     if (audioUrl == null || audioUrl.isEmpty) {
-      _showSnack('No audio URL');
+      _showSnack('No audio URL available');
       return;
     }
+
     setState(() {
-      _currentTitle = song['title'] as String?;
-      _currentArtist = (song['artists'] as List?)?.join(', ');
+      _currentTitle = title;
+      _currentArtist = artist;
       _error = null;
     });
     _showSnack('Loading...');
@@ -87,6 +107,32 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       setState(() => _error = e.toString());
       _showSnack('Play failed: $e');
     }
+  }
+
+  String _thumbUrl(dynamic song) {
+    try {
+      final thumbs = song.thumbnails;
+      if (thumbs is List && thumbs.isNotEmpty) {
+        return thumbs.last.url?.toString() ?? '';
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  String _titleOf(dynamic song) {
+    try {
+      return song.title?.toString() ?? 'Unknown';
+    } catch (_) {
+      return 'Unknown';
+    }
+  }
+
+  String _artistOf(dynamic song) {
+    try {
+      final a = song.artists;
+      if (a is List) return a.map((x) => x.toString()).join(', ');
+    } catch (_) {}
+    return '';
   }
 
   void _showSnack(String msg) {
@@ -199,10 +245,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                     itemCount: _results.length,
                     itemBuilder: (_, i) {
                       final s = _results[i];
-                      final title = s['title'] as String? ?? 'Unknown';
-                      final artists =
-                          (s['artists'] as List?)?.join(', ') ?? '';
-                      final thumb = (s['albumArt'] as String?) ?? '';
+                      final thumb = _thumbUrl(s);
                       return ListTile(
                         leading: SizedBox(
                           width: 48,
@@ -220,13 +263,13 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                           ),
                         ),
                         title: Text(
-                          title,
+                          _titleOf(s),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: Colors.white),
                         ),
                         subtitle: Text(
-                          artists,
+                          _artistOf(s),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: Colors.grey),
