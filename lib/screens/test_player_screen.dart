@@ -1,7 +1,9 @@
+import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:youtube_explode_dart/youtube_explode_dart.dart' as yt;
-import 'package:youtube_extractor_muzo/extractor.dart';
 
 class TestPlayerScreen extends StatefulWidget {
   const TestPlayerScreen({super.key});
@@ -13,6 +15,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   final _player = AudioPlayer();
   final _controller = TextEditingController();
   final _yt = yt.YoutubeExplode();
+  final _dio = Dio();
 
   List<yt.Video> _results = [];
   bool _loading = false;
@@ -20,6 +23,14 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   bool _buffering = false;
   String? _currentTitle;
   String? _error;
+
+  // Headers for YouTube download
+  static const _headers = {
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Referer': 'https://www.youtube.com/',
+    'Origin': 'https://www.youtube.com',
+  };
 
   @override
   void initState() {
@@ -77,17 +88,40 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       _error = null;
     });
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Extracting...')),
+      const SnackBar(content: Text('Downloading...')),
     );
     try {
-      final playbackData = await YTPlayerUtils.playerResponseForPlayback(
-        video.id.value,
-        audioQuality: AudioQuality.high,
-      );
-      if (playbackData == null) {
-        throw Exception('No stream returned');
+      // Get audio stream (prefer M4A/AAC)
+      final manifest = await _yt.videos.streamsClient.getManifest(video.id.value);
+      final audioStream = manifest.audioOnly
+          .where((s) => s.container == yt.StreamContainer.mp4)
+          .withHighestBitrate();
+
+      if (audioStream == null) throw Exception('No audio stream found');
+
+      final url = audioStream.url.toString();
+
+      // Prepare cache directory
+      final tempDir = await getTemporaryDirectory();
+      final cacheDir = Directory('${tempDir.path}/aura_cache');
+      if (!await cacheDir.exists()) await cacheDir.create(recursive: true);
+      final file = File('${cacheDir.path}/${video.id.value}.m4a');
+
+      // Download if not cached
+      if (!await file.exists()) {
+        await _dio.download(
+          url,
+          file.path,
+          options: Options(
+            headers: _headers,
+            followRedirects: true,
+            responseType: ResponseType.bytes,
+          ),
+        );
       }
-      await _player.setUrl(playbackData.streamUrl);
+
+      // Play from local file
+      await _player.setFilePath(file.path);
       _player.play();
     } catch (e) {
       setState(() => _error = e.toString());

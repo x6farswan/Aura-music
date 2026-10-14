@@ -14,7 +14,6 @@ dependencies:
   just_audio: ^0.9.42
   dio: ^5.4.0
   youtube_explode_dart: ^2.2.2
-  youtube_extractor_muzo: ^1.0.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.1
@@ -35,6 +34,10 @@ flutter:
   uses-material-design: true
 
 dependency_overrides:
+  youtube_explode_dart:
+    git:
+      url: https://github.com/rsozdance/youtube_explode_dart.git
+      ref: master
   flutter_js:
     git:
       url: https://github.com/abner/flutter_js.git
