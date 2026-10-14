@@ -13,7 +13,7 @@ dependencies:
   provider: ^6.1.1
   just_audio: ^0.9.42
   dio: ^5.4.0
-  yt_flutter_musicapi: ^3.4.4
+  youtube_extractor_muzo: ^1.0.0
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.1

@@ -2,7 +2,6 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
-    id("com.chaquo.python")
 }
 
 android {
@@ -42,16 +41,6 @@ android {
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-    }
-}
-
-chaquopy {
-    defaultConfig {
-        version = "3.11"
-        pip {
-            install("ytmusicapi")
-            install("yt-dlp")
-        }
     }
 }
 
