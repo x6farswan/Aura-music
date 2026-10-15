@@ -12,7 +12,7 @@ dependencies:
   cupertino_icons: ^1.0.6
   provider: ^6.1.1
   just_audio: ^0.9.42
-  yt_extractor: ^0.1.0
+  newpipeextractor_dart: ^2.0.2
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.1

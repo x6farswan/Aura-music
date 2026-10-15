@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:yt_extractor/yt_extractor.dart';
+import 'package:newpipeextractor_dart/newpipeextractor_dart.dart';
 
 class TestPlayerScreen extends StatefulWidget {
   const TestPlayerScreen({super.key});
@@ -9,11 +9,10 @@ class TestPlayerScreen extends StatefulWidget {
 }
 
 class _TestPlayerScreenState extends State<TestPlayerScreen> {
-  final _extractor = YtExtractor();
   final _player = AudioPlayer();
   final _controller = TextEditingController();
 
-  List<SearchItem> _results = [];
+  List<StreamInfoItem> _results = [];
   bool _loading = false;
   bool _playing = false;
   bool _buffering = false;
@@ -23,7 +22,6 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _extractor.init();
     _player.playingStream.listen((p) {
       if (mounted) setState(() => _playing = p);
     });
@@ -53,13 +51,13 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
     });
 
     try {
-      final results = await _extractor.search(
+      final page = await SearchExtractor.searchYoutube(
         _controller.text.trim(),
-        filter: SearchFilter.musicSongs,
+        [SearchFilter.videos.value],
       );
       if (mounted) {
         setState(() {
-          _results = results.items;
+          _results = page.result.videos;
           _loading = false;
         });
       }
@@ -73,7 +71,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
     }
   }
 
-  Future<void> _play(SearchItem item) async {
+  Future<void> _play(StreamInfoItem item) async {
     setState(() {
       _currentTitle = item.name;
       _error = null;
@@ -83,11 +81,11 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
     );
 
     try {
-      final info = await _extractor.getStreamInfo(item.url);
-      final audioStream = info.bestAudioStream;
-      if (audioStream == null) throw Exception('No audio stream');
+      final video = await VideoExtractor.getStream(item.url);
+      final audio = video.audioWithHighestQuality;
+      if (audio == null) throw Exception('No audio stream');
 
-      await _player.setUrl(audioStream.url);
+      await _player.setUrl(audio.url);
       _player.play();
     } catch (e) {
       setState(() => _error = e.toString());
@@ -145,8 +143,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                   ),
                   if (_buffering)
                     const SizedBox(
-                      width: 32,
-                      height: 32,
+                      width: 32, height: 32,
                       child: Padding(
                         padding: EdgeInsets.all(6),
                         child: CircularProgressIndicator(
@@ -180,7 +177,7 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
               child: Text(
                 _error!,
                 style: const TextStyle(color: Colors.red, fontSize: 11),
-                maxLines: 2,
+                maxLines: 3,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -194,15 +191,17 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                     itemCount: _results.length,
                     itemBuilder: (_, i) {
                       final item = _results[i];
+                      final thumb = item.thumbnails.isNotEmpty
+                          ? item.thumbnails.first
+                          : '';
                       return ListTile(
                         leading: SizedBox(
-                          width: 48,
-                          height: 48,
+                          width: 48, height: 48,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: item.thumbnailUrl.isNotEmpty
+                            child: thumb.isNotEmpty
                                 ? Image.network(
-                                    item.thumbnailUrl,
+                                    thumb,
                                     fit: BoxFit.cover,
                                     errorBuilder: (_, __, ___) => Container(
                                         color: Colors.grey.shade900),
@@ -211,13 +210,13 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
                           ),
                         ),
                         title: Text(
-                          item.name,
+                          item.name ?? 'Unknown',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: Colors.white),
                         ),
                         subtitle: Text(
-                          item.uploaderName,
+                          item.uploaderName ?? '',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(color: Colors.grey),
