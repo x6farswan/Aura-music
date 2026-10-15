@@ -15,10 +15,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    kotlinOptions {
-        jvmTarget = "11"
-    }
-
     defaultConfig {
         applicationId = "com.aura.aura_music"
         minSdk = 24
@@ -33,17 +29,20 @@ android {
             signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
         }
     }
 
     packaging {
         resources {
-            excludes += ["META-INF/beans.xml", "META-INF/*.kotlin_module"]
+            excludes.add("META-INF/beans.xml")
+            excludes.add("META-INF/*.kotlin_module")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 
