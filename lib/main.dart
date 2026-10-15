@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:newpipeextractor_dart/newpipeextractor_dart.dart';
 import 'screens/test_player_screen.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    await NewPipeExtractor.init();
+    debugPrint('NewPipe Extractor initialized');
+  } catch (e, st) {
+    debugPrint('NewPipe init FAILED: $e');
+    debugPrint('$st');
+  }
+
   runApp(const AuraMusicApp());
 }
 

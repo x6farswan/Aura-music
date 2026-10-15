@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:newpipeextractor_dart/newpipeextractor_dart.dart';
@@ -54,14 +55,24 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       final page = await SearchExtractor.searchYoutube(
         _controller.text.trim(),
         [SearchFilter.videos.value],
-      );
+      ).timeout(const Duration(seconds: 20));
+
       if (mounted) {
         setState(() {
           _results = page.result.videos;
           _loading = false;
         });
       }
-    } catch (e) {
+    } on TimeoutException {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Search timed out. Check internet.';
+        });
+      }
+    } catch (e, st) {
+      debugPrint('Search error: $e');
+      debugPrint('$st');
       if (mounted) {
         setState(() {
           _loading = false;
@@ -76,19 +87,19 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
       _currentTitle = item.name;
       _error = null;
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Extracting stream...')),
-    );
 
     try {
-      final video = await VideoExtractor.getStream(item.url ?? "");
+      final video = await VideoExtractor.getStream(item.url ?? '')
+          .timeout(const Duration(seconds: 20));
       final audio = video.audioWithHighestQuality;
       if (audio == null) throw Exception('No audio stream');
 
-      await _player.setUrl(audio.url ?? "");
+      await _player.setUrl(audio.url ?? '');
       _player.play();
-    } catch (e) {
-      setState(() => _error = e.toString());
+    } catch (e, st) {
+      debugPrint('Play error: $e');
+      debugPrint('$st');
+      if (mounted) setState(() => _error = e.toString());
     }
   }
 
@@ -172,12 +183,18 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
             ),
           if (_loading) const LinearProgressIndicator(color: Color(0xFFFA2D48)),
           if (_error != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Text(
                 _error!,
                 style: const TextStyle(color: Colors.red, fontSize: 11),
-                maxLines: 3,
+                maxLines: 4,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
