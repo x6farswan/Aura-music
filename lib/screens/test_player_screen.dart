@@ -81,11 +81,11 @@ class _TestPlayerScreenState extends State<TestPlayerScreen> {
     );
 
     try {
-      final video = await VideoExtractor.getStream(item.url);
+      final video = await VideoExtractor.getStream(item.url ?? "");
       final audio = video.audioWithHighestQuality;
       if (audio == null) throw Exception('No audio stream');
 
-      await _player.setUrl(audio.url);
+      await _player.setUrl(audio.url ?? "");
       _player.play();
     } catch (e) {
       setState(() => _error = e.toString());
